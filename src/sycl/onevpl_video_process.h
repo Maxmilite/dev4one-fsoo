@@ -26,8 +26,6 @@ namespace video_process {
 	mfxSyncPoint syncp;
 
 	int run(std::string file_name) {
-		
-		return 900;
 
 		source = fopen(file_name.c_str(), "rb");
 		sink = fopen(out_name.c_str(), "wb");

@@ -7,7 +7,7 @@
 
 namespace util {
     void printUsage() {
-        std::cerr << "Usage: ./<Program name> <Input name> <Output name>" << std::endl;
+        std::cerr << "Usage: ./<Program name> <Input Video Name> <Pattern Face Picture Name> <Output Video Name>" << std::endl;
         exit(-1);
     }
     void callException(std::string message) {

@@ -1,14 +1,20 @@
 #ifndef __IMAGE_PROCESSING_H
 #define __IMAGE_PROCESSING_H
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <list>
 #include <string>
+#include <vector>
+
+#include <sycl/sycl.hpp>
 
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/imgproc/imgproc_c.h>
+#include <opencv2/opencv.hpp>
 #include <opencv2/photo.hpp>
 
 #include <errno.h>
@@ -25,6 +31,8 @@
 
 #include "../util.h"
 
+using namespace sycl;
+
 #define WIDTH 1920
 #define HEIGHT 1080
 
@@ -32,9 +40,30 @@
 #define MIN2(a, b) ((a) > (b) ? (b) : (a))
 #define CLIP3(a, low, high) MIN2(MAX2(a, low), high)
 
+namespace sycl_accelerator {
+
+	void buf_add_1(uint8_t *buf_tmp, uint8_t *src, int uv_height, int uv_stride, queue q) {
+		for (int y = 0; y < uv_height; y++) {
+			for (int x = 0; x < uv_stride; x++) {
+				buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
+			}
+		}
+		
+	}
+
+	void buf_add_2(uint8_t *buf_tmp, uint8_t *src, int uv_height, int uv_stride, queue q) {
+		for (int y = 0; y < uv_height; y++) {
+			for (int x = 0; x < uv_stride; x++) {
+				buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
+			}
+		}
+	}
+
+}
+
 namespace image_process {
 
-	void resize_4x(unsigned char *src, unsigned char *dst, int width, int height) {
+	void resize_4x(unsigned char *src, unsigned char *dst, int width, int height, queue q) {
 		int width_half = width >> 1;
 		int height_half = height >> 1;
 
@@ -111,7 +140,7 @@ namespace image_process {
 	}
 
 	void yuv2rgb(unsigned char *yp, unsigned char *up, unsigned char *vp, unsigned char *rp, unsigned char *gp,
-				 unsigned char *bp, int width, int height, int stride) {
+				 unsigned char *bp, int width, int height, int stride, queue q) {
 		/*
 		R'= Y' + 0.000*U' + 1.403*V'
 		G'= Y' - 0.344*U' - 0.714*V'
@@ -137,7 +166,8 @@ namespace image_process {
 		}
 	}
 
-	void abstract_frame_from_CIF_file(int fd, char *Path_And_Prefix_Img, int Len) {
+	void abstract_frame_from_CIF_file(int fd, char *Path_And_Prefix_Img, int Len, queue q) {
+
 		int Frame_SIZE = frame_size_of_cif();
 		char file[128];
 		memset(file, 0, 128);
@@ -175,24 +205,16 @@ namespace image_process {
 			int uv_stride = WIDTH / 2;
 
 			memcpy(yp, buf, WIDTH * HEIGHT * sizeof(unsigned char));
-			for (int y = 0; y < uv_height; y++) {
-				for (int x = 0; x < uv_stride; x++) {
-					buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
-				}
-			}
+			sycl_accelerator::buf_add_1(buf_tmp, src, uv_height, uv_stride, q);
 
-			resize_4x(buf_tmp, up, WIDTH, HEIGHT);
+			resize_4x(buf_tmp, up, WIDTH, HEIGHT, q);
 
 			src = buf + WIDTH * HEIGHT + uv_stride * uv_height;
-			for (int y = 0; y < uv_height; y++) {
-				for (int x = 0; x < uv_stride; x++) {
-					buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
-				}
-			}
+			sycl_accelerator::buf_add_2(buf_tmp, src, uv_height, uv_stride, q);
 
-			resize_4x(buf_tmp, vp, WIDTH, HEIGHT);
+			resize_4x(buf_tmp, vp, WIDTH, HEIGHT, q);
 
-			yuv2rgb(yp, up, vp, rp, gp, bp, WIDTH, HEIGHT, WIDTH);
+			yuv2rgb(yp, up, vp, rp, gp, bp, WIDTH, HEIGHT, WIDTH, q);
 
 			cv::Mat img(cvSize(WIDTH, HEIGHT), CV_8UC3);
 			for (int y = 0; y < HEIGHT; y++) {
@@ -210,7 +232,7 @@ namespace image_process {
 			// close(fdw);
 			memset(file, 0, 128);
 			memcpy(file, Path_And_Prefix_Img, Len);
-			std::cerr << "Running on " << frames << std::endl;
+			std::cerr << "YUV2 to PNG: Running on frame " << frames << ".\n";
 			// memset(file, 0, 128);
 		}
 
@@ -223,10 +245,27 @@ namespace image_process {
 		if (bp) free(bp);
 	}
 
-	void run(std::string file_name, int frame_num) {
+	void run(std::string file_name, int frame_num, queue q) {
 		int fd = open(file_name.c_str(), O_RDONLY);
-		abstract_frame_from_CIF_file(fd, "./tmp_work/input_frames/frame_", strlen("./tmp_work/input_frames/frame_"));
+		abstract_frame_from_CIF_file(fd, "./tmp_work/input_frames/frame_", strlen("./tmp_work/input_frames/frame_"), q);
 		close(fd);
+	}
+}
+
+namespace image_process_inv {
+
+	void run(std::string name) {
+		// TODO
+		// Just a substitute here
+
+		std::stringstream ss;
+		ss << "ffmpeg -framerate 30 -y -i ./tmp_work/output_frames/frame_%d.png -c:a copy -crf 20 -c:v libx264 -pix_fmt yuv420p ";
+		ss << name;
+		std::string s;
+		getline(ss, s);
+		std::cerr << s << std::endl;
+		system(s.c_str());
+
 	}
 }
 

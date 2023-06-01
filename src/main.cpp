@@ -8,13 +8,14 @@
 #include <dlib/image_io.h>
 #include <dlib/image_processing.h>
 #include <dlib/image_processing/frontal_face_detector.h>
-// #include "dlib_sycl/image_processing/frontal_face_detector.h"
 #include <dlib/image_processing/render_face_detections.h>
 #include <dlib/opencv/cv_image_abstract.h>
 
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/photo.hpp>
+
+#include <sycl/sycl.hpp>
 
 #include "sycl/image_processing.h"
 #include "sycl/onevpl_video_process.h"
@@ -36,7 +37,12 @@ void apply_affine_transform(cv::Mat &, cv::Mat &, std::vector<cv::Point2f> &, st
 
 dlib::frontal_face_detector detector;
 
+sycl::queue q;
+
 int main(int argc, char *argv[]) {
+
+	q = queue(default_selector_v);
+	std::cout << "Device: " << q.get_device().get_info<info::device::name>() << "\n";
 
 	dlib::shape_predictor sp;
 	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> sp;
@@ -46,13 +52,15 @@ int main(int argc, char *argv[]) {
 		util::printUsage();
 	}
 
-	int frame_num = video_process::run("/home/maxmilite/GitHub/dev4one/dist/samples/input.h264");
+	int frame_num = video_process::run(argv[1]);
 
 	if (frame_num == -1) return -1;
 
-	// image_process::run("./tmp_work/out.yuv", frame_num);
+	image_process::run("./tmp_work/out.yuv", frame_num, q);
 
 	for (int index = 1; index <= frame_num; ++index) {
+
+		std::cout << "Now processing frame " << index << ".\n";
 
 		std::stringstream ss;
 		std::string file_in, file_out;
@@ -67,16 +75,16 @@ int main(int argc, char *argv[]) {
 		dlib::array2d<unsigned char> img_dlib1, img_dlib2;
 		cv::Mat img_cv1, img_cv2;
 		try {
-			dlib::load_image(img_dlib1, file_in);
-			dlib::load_image(img_dlib2, argv[2]);
-			img_cv1 = cv::imread(file_in);
-			img_cv2 = cv::imread(argv[2]);
+			dlib::load_image(img_dlib1, argv[2]);
+			dlib::load_image(img_dlib2, file_in);
+			img_cv1 = cv::imread(argv[2]);
+			img_cv2 = cv::imread(file_in);
 		} catch (const std::exception &e) {
 			std::cerr << e.what() << std::endl;
-			dlib::load_image(img_dlib1, "/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
-			dlib::load_image(img_dlib2, "/home/maxmilite/GitHub/dev4one/dist/samples/img2.png");
-			img_cv1 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
-			img_cv2 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/img2.png");
+			// dlib::load_image(img_dlib1, "/home/maxmilite/GitHub/dev4one/dist/samples/pattern_img.png");
+			// dlib::load_image(img_dlib2, "/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
+			// img_cv1 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/pattern_img.png");
+			// img_cv2 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
 		}
 		if (!img_cv1.data || !img_cv2.data) {
 			std::cerr << "No image data were loaded" << std::endl;
@@ -88,8 +96,15 @@ int main(int argc, char *argv[]) {
 		int status = 1;
 		status &= face_landmark_detection(img_dlib1, sp, points1);
 		status &= face_landmark_detection(img_dlib2, sp, points2);
-		if (!status)
+		if (!status) {
+			try {
+				cv::imwrite(file_out, img_cv2);
+			} catch (const std::exception &e) {
+				std::cerr << e.what() << std::endl;
+				// cv::imwrite("/home/maxmilite/GitHub/dev4one/dist/samples/output.png", output);
+			}
 			continue;
+		}
 		current_time = calc_time_elapsed(current_time);
 
 		cv::Mat img_cv1_warped = img_cv2.clone();
@@ -138,17 +153,21 @@ int main(int argc, char *argv[]) {
 			cv::imwrite(file_out, output);
 		} catch (const std::exception &e) {
 			std::cerr << e.what() << std::endl;
-			cv::imwrite("/home/maxmilite/GitHub/dev4one/dist/samples/output.png", output);
+			// cv::imwrite("/home/maxmilite/GitHub/dev4one/dist/samples/output.png", output);
 		}
 	}
+
+
+
+	image_process_inv::run(argv[3]);
 
 	return 0;
 }
 
 int face_landmark_detection(dlib::array2d<unsigned char> &img, dlib::shape_predictor sp, std::vector<cv::Point2f> &landmark) {
-	std::cerr << std::fixed << std::setprecision(3) << "Detector start time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
+	// std::cerr << std::fixed << std::setprecision(3) << "Detector start time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 	std::vector<dlib::rectangle> dets = detector(img);
-	std::cerr << std::fixed << std::setprecision(3) << "Detector end time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
+	// std::cerr << std::fixed << std::setprecision(3) << "Detector end time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 	if (dets.empty())
 	 	return 0;
 	dlib::full_object_detection shape = sp(img, dets[0]);
@@ -167,7 +186,7 @@ lint get_time() {
 
 lint calc_time_elapsed(lint x) {
 	lint v = get_time();
-	std::cerr << std::fixed << std::setprecision(3) << "Time elapsed: " << (v - x) * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
+	// std::cerr << std::fixed << std::setprecision(3) << "Time elapsed: " << (v - x) * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 	return v;
 }
 
