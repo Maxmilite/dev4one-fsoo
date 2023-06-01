@@ -116,7 +116,9 @@ int main(int argc, char* argv[]) {
 }
 
 void face_landmark_detection(dlib::array2d<unsigned char>& img, dlib::shape_predictor sp, std::vector<cv::Point2f>& landmark) {
+    std::cerr << std::fixed << std::setprecision(3) << "Detector start time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
     std::vector<dlib::rectangle> dets = detector(img);
+    std::cerr << std::fixed << std::setprecision(3) << "Detector end time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
     dlib::full_object_detection shape = sp(img, dets[0]);
 
     for (int i = 0; i < shape.num_parts(); ++i) {

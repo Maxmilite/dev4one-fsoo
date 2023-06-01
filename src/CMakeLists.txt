@@ -15,3 +15,6 @@ find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 target_link_libraries(main ${OpenCV_LIBS})
 target_link_libraries(main dlib::dlib)
+find_package(VPL REQUIRED)
+target_link_libraries(main VPL::dispatcher)
+

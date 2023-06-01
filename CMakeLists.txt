@@ -1,4 +1,4 @@
-set(CMAKE_CXX_COMPILER icpx)
+set(CMAKE_CXX_COMPILER /opt/intel/oneapi/compiler/latest/linux/bin/icpx)
 
 cmake_minimum_required(VERSION 3.4)
 project(FaceSwap)
@@ -7,9 +7,6 @@ project(FaceSwap)
 # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../dist)
 
-add_subdirectory(../dlib dlib_build)
-if(DLIB_LINK_WITH_SQLITE3)
-	add_example(sqlite_ex)
-endif()
+add_subdirectory(dlib dlib_build)
 
 add_subdirectory(src)
