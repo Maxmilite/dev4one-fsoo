@@ -805,7 +805,10 @@ namespace dlib
                 const rectangle area = apply_filters_to_fhog(w, feats[l], saliency_image);
                 // std::cerr << std::fixed << std::setprecision(5) << "Time Finish-" << l << ": " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 
+                // std::cerr << std::fixed << std::setprecision(5) << "Time Start-" << l << ": " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
+
                 // now search the saliency image for any detections
+                // std::cerr << area.top() << " " << area.bottom() << " " << area.left() << " " << area.right() << std::endl;
                 for (long r = area.top(); r <= area.bottom(); ++r)
                 {
                     for (long c = area.left(); c <= area.right(); ++c)
@@ -820,6 +823,8 @@ namespace dlib
                         }
                     }
                 }
+
+                // std::cerr << std::fixed << std::setprecision(5) << "Time Finish-" << l << ": " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
             }
 
             std::sort(dets.rbegin(), dets.rend(), compare_pair_rect);

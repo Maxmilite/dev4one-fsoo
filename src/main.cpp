@@ -7,7 +7,8 @@
 #include <dlib/gui_widgets.h>
 #include <dlib/image_io.h>
 #include <dlib/image_processing.h>
-#include <dlib/image_processing/frontal_face_detector.h>
+// #include <dlib/image_processing/frontal_face_detector.h>
+#include "dlib_sycl/image_processing/frontal_face_detector.h"
 #include <dlib/image_processing/render_face_detections.h>
 #include <dlib/opencv/cv_image_abstract.h>
 
@@ -41,26 +42,34 @@ sycl::queue q;
 
 int main(int argc, char *argv[]) {
 
-	q = queue(default_selector_v);
-	std::cout << "Device: " << q.get_device().get_info<info::device::name>() << "\n";
-
-	dlib::shape_predictor sp;
-	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> sp;
-	detector = dlib::get_frontal_face_detector();
-
 	if (argc != 4) {
 		util::printUsage();
 	}
 
+	std::cout << "Origin Video: " << argv[1] << std::endl;
+	std::cout << "Pattern Image: " << argv[2] << std::endl;
+
+	q = queue(default_selector_v);
+	std::cout << "oneAPI Parallel Device: " << q.get_device().get_info<info::device::name>() << "\n";
+
+	std::cout << "Initializing dlib Shape Detector" << std::endl;
+	dlib::shape_predictor sp;
+	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> sp;
+	detector = dlib::get_frontal_face_detector();
+	std::cout << "dlib Shape Detector Initialized" << std::endl;
+
+	std::cout << "Decoding Video" << std::endl;
 	int frame_num = video_process::run(argv[1]);
+	std::cout << "Video Decoded" << std::endl;
 
 	if (frame_num == -1) return -1;
 
-	image_process::run("./tmp_work/out.yuv", frame_num, q);
-
+	std::cout << "Spliting yuv video into frames" << std::endl;
+	// image_process::run("./tmp_work/out.yuv", frame_num, q);
+	std::cout << "Frames split" << std::endl;
 	for (int index = 1; index <= frame_num; ++index) {
 
-		std::cout << "Now processing frame " << index << ".\n";
+		std::cout << "Now processing frame " << index << "." << std::endl;
 
 		std::stringstream ss;
 		std::string file_in, file_out;
@@ -69,7 +78,6 @@ int main(int argc, char *argv[]) {
 		ss.clear();
 		ss << "./tmp_work/output_frames/frame_" << index << ".png";
 		ss >> file_out;
-
 
 		lint current_time = get_time();
 		dlib::array2d<unsigned char> img_dlib1, img_dlib2;
@@ -81,10 +89,6 @@ int main(int argc, char *argv[]) {
 			img_cv2 = cv::imread(file_in);
 		} catch (const std::exception &e) {
 			std::cerr << e.what() << std::endl;
-			// dlib::load_image(img_dlib1, "/home/maxmilite/GitHub/dev4one/dist/samples/pattern_img.png");
-			// dlib::load_image(img_dlib2, "/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
-			// img_cv1 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/pattern_img.png");
-			// img_cv2 = cv::imread("/home/maxmilite/GitHub/dev4one/dist/samples/img1.png");
 		}
 		if (!img_cv1.data || !img_cv2.data) {
 			std::cerr << "No image data were loaded" << std::endl;
@@ -103,6 +107,7 @@ int main(int argc, char *argv[]) {
 				std::cerr << e.what() << std::endl;
 				// cv::imwrite("/home/maxmilite/GitHub/dev4one/dist/samples/output.png", output);
 			}
+			current_time = calc_time_elapsed(current_time);
 			continue;
 		}
 		current_time = calc_time_elapsed(current_time);
@@ -157,9 +162,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-
-
+	std::cout << "Merging frames" << std::endl;
 	image_process_inv::run(argv[3]);
+	std::cout << "Frames merged" << std::endl;
+
+	std::cout << "Video now saved as " << argv[3] << std::endl;
 
 	return 0;
 }
@@ -169,7 +176,7 @@ int face_landmark_detection(dlib::array2d<unsigned char> &img, dlib::shape_predi
 	std::vector<dlib::rectangle> dets = detector(img);
 	// std::cerr << std::fixed << std::setprecision(3) << "Detector end time: " << std::chrono::system_clock::now().time_since_epoch().count() * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 	if (dets.empty())
-	 	return 0;
+		return 0;
 	dlib::full_object_detection shape = sp(img, dets[0]);
 
 	for (int i = 0; i < shape.num_parts(); ++i) {
@@ -186,7 +193,7 @@ lint get_time() {
 
 lint calc_time_elapsed(lint x) {
 	lint v = get_time();
-	// std::cerr << std::fixed << std::setprecision(3) << "Time elapsed: " << (v - x) * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
+	std::cerr << std::fixed << std::setprecision(3) << "Time elapsed: " << (v - x) * 1.0 * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den << std::endl;
 	return v;
 }
 

@@ -41,29 +41,32 @@ using namespace sycl;
 #define CLIP3(a, low, high) MIN2(MAX2(a, low), high)
 
 namespace sycl_accelerator {
-
-	void buf_add_1(uint8_t *buf_tmp, uint8_t *src, int uv_height, int uv_stride, queue q) {
-		for (int y = 0; y < uv_height; y++) {
-			for (int x = 0; x < uv_stride; x++) {
-				buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
-			}
-		}
-		
-	}
-
-	void buf_add_2(uint8_t *buf_tmp, uint8_t *src, int uv_height, int uv_stride, queue q) {
-		for (int y = 0; y < uv_height; y++) {
-			for (int x = 0; x < uv_stride; x++) {
-				buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
-			}
-		}
+	void buf_add_1(uint8_t *tmp, uint8_t *src, int uv_height, int uv_stride, queue& q) {
+		// for (int y = 0; y < uv_height; y++) {
+		// 	for (int x = 0; x < uv_stride; x++) {
+		// 		buf_tmp[y * uv_stride + x] = src[y * uv_stride + x];
+		// 	}
+		// }
+		auto R = range<1>(uv_height * uv_stride);
+		buffer buf_tmp(tmp, R);
+		buffer buf_src(src, R);
+		q.submit([&](handler &h) {
+			accessor TMP(buf_tmp, h, write_only);
+			accessor SRC(buf_src, h, read_only);
+			h.parallel_for(range<1>(uv_height), [=](id<1> y) {
+				for (int x = 0; x < uv_stride; x++) {
+					TMP[y * uv_stride + x] = SRC[y * uv_stride + x];
+				}
+			});
+		});
+		q.wait();
 	}
 
 }
 
 namespace image_process {
 
-	void resize_4x(unsigned char *src, unsigned char *dst, int width, int height, queue q) {
+	void resize_4x(unsigned char *src, unsigned char *dst, int width, int height, queue& q) {
 		int width_half = width >> 1;
 		int height_half = height >> 1;
 
@@ -140,7 +143,7 @@ namespace image_process {
 	}
 
 	void yuv2rgb(unsigned char *yp, unsigned char *up, unsigned char *vp, unsigned char *rp, unsigned char *gp,
-				 unsigned char *bp, int width, int height, int stride, queue q) {
+				 unsigned char *bp, int width, int height, int stride, queue& q) {
 		/*
 		R'= Y' + 0.000*U' + 1.403*V'
 		G'= Y' - 0.344*U' - 0.714*V'
@@ -149,24 +152,59 @@ namespace image_process {
 		float mat[9] = {1.0f, 0.0f, 1.403f, 1.0f, -0.344f, -0.714f, 1.0f, 1.773f, 0.0f};
 		int uv_offset = 128;
 
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				int lum = yp[y * stride + x];
-				int u = up[y * stride + x];
-				int v = vp[y * stride + x];
+		auto R = range<1>(width * height);
+		buffer buf_mat(mat, range<1>(9));
+		buffer buf_yp(yp, R);
+		buffer buf_up(up, R);
+		buffer buf_vp(vp, R);
+		buffer buf_rp(rp, R);
+		buffer buf_gp(gp, R);
+		buffer buf_bp(bp, R);
+		
+		q.submit([&](handler &h) {
+			accessor acc_mat(buf_mat, h, read_only);
+			accessor acc_yp(buf_yp, h, read_only);
+			accessor acc_up(buf_up, h, read_only);
+			accessor acc_vp(buf_vp, h, read_only);
+			accessor acc_rp(buf_rp, h, write_only);
+			accessor acc_gp(buf_gp, h, write_only);
+			accessor acc_bp(buf_bp, h, write_only);
+			h.parallel_for(range<1>(height), [=](id<1> y) {
+				for (int x = 0; x < width; x++) {
+					int lum = acc_yp[y * stride + x];
+					int u = acc_up[y * stride + x];
+					int v = acc_vp[y * stride + x];
 
-				int r = (int)(mat[0] * lum + mat[1] * (u - uv_offset) + mat[2] * (v - uv_offset));
-				int g = (int)(mat[3] * lum + mat[4] * (u - uv_offset) + mat[5] * (v - uv_offset));
-				int b = (int)(mat[6] * lum + mat[7] * (u - uv_offset) + mat[8] * (v - uv_offset));
+					int r = (int)(acc_mat[0] * lum + acc_mat[1] * (u - uv_offset) + acc_mat[2] * (v - uv_offset));
+					int g = (int)(acc_mat[3] * lum + acc_mat[4] * (u - uv_offset) + acc_mat[5] * (v - uv_offset));
+					int b = (int)(acc_mat[6] * lum + acc_mat[7] * (u - uv_offset) + acc_mat[8] * (v - uv_offset));
 
-				rp[y * width + x] = CLIP3(r, 0, 255);
-				gp[y * width + x] = CLIP3(g, 0, 255);
-				bp[y * width + x] = CLIP3(b, 0, 255);
-			}
-		}
+					acc_rp[y * width + x] = CLIP3(r, 0, 255);
+					acc_gp[y * width + x] = CLIP3(g, 0, 255);
+					acc_bp[y * width + x] = CLIP3(b, 0, 255);
+				}
+			});
+
+		});
+		q.wait();
+		// for (int y = 0; y < height; y++) {
+		// 	for (int x = 0; x < width; x++) {
+		// 		int lum = yp[y * stride + x];
+		// 		int u = up[y * stride + x];
+		// 		int v = vp[y * stride + x];
+
+		// 		int r = (int)(mat[0] * lum + mat[1] * (u - uv_offset) + mat[2] * (v - uv_offset));
+		// 		int g = (int)(mat[3] * lum + mat[4] * (u - uv_offset) + mat[5] * (v - uv_offset));
+		// 		int b = (int)(mat[6] * lum + mat[7] * (u - uv_offset) + mat[8] * (v - uv_offset));
+
+		// 		rp[y * width + x] = CLIP3(r, 0, 255);
+		// 		gp[y * width + x] = CLIP3(g, 0, 255);
+		// 		bp[y * width + x] = CLIP3(b, 0, 255);
+		// 	}
+		// }
 	}
 
-	void abstract_frame_from_CIF_file(int fd, char *Path_And_Prefix_Img, int Len, queue q) {
+	void abstract_frame_from_CIF_file(int fd, char *Path_And_Prefix_Img, int Len, queue& q) {
 
 		int Frame_SIZE = frame_size_of_cif();
 		char file[128];
@@ -210,19 +248,32 @@ namespace image_process {
 			resize_4x(buf_tmp, up, WIDTH, HEIGHT, q);
 
 			src = buf + WIDTH * HEIGHT + uv_stride * uv_height;
-			sycl_accelerator::buf_add_2(buf_tmp, src, uv_height, uv_stride, q);
+			sycl_accelerator::buf_add_1(buf_tmp, src, uv_height, uv_stride, q);
 
 			resize_4x(buf_tmp, vp, WIDTH, HEIGHT, q);
 
 			yuv2rgb(yp, up, vp, rp, gp, bp, WIDTH, HEIGHT, WIDTH, q);
 
 			cv::Mat img(cvSize(WIDTH, HEIGHT), CV_8UC3);
-			for (int y = 0; y < HEIGHT; y++) {
-				for (int x = 0; x < WIDTH; x++) {
-					img.data[(y * WIDTH + x) * 3 + 0] = bp[y * WIDTH + x];
-					img.data[(y * WIDTH + x) * 3 + 1] = gp[y * WIDTH + x];
-					img.data[(y * WIDTH + x) * 3 + 2] = rp[y * WIDTH + x];
-				}
+			{
+				buffer buf_img(img.data, range<1>(WIDTH * HEIGHT));
+				buffer buf_bp(bp, range<1>(WIDTH * HEIGHT));
+				buffer buf_gp(gp, range<1>(WIDTH * HEIGHT));
+				buffer buf_rp(rp, range<1>(WIDTH * HEIGHT));
+				q.submit([&](handler &h) {
+					accessor acc_img(buf_img, h, write_only);
+					accessor acc_bp(buf_bp, h, read_only);
+					accessor acc_gp(buf_gp, h, read_only);
+					accessor acc_rp(buf_rp, h, read_only);
+					h.parallel_for(range<1>(HEIGHT), [=](id<1> y) {
+						for (int x = 0; x < WIDTH; x++) {
+							acc_img[(y * WIDTH + x) * 3 + 0] = acc_bp[y * WIDTH + x];
+							acc_img[(y * WIDTH + x) * 3 + 1] = acc_gp[y * WIDTH + x];
+							acc_img[(y * WIDTH + x) * 3 + 2] = acc_rp[y * WIDTH + x];
+						}
+					});
+				});
+				q.wait();
 			}
 
 			imwrite(file, img);
@@ -245,7 +296,7 @@ namespace image_process {
 		if (bp) free(bp);
 	}
 
-	void run(std::string file_name, int frame_num, queue q) {
+	void run(std::string file_name, int frame_num, queue& q) {
 		int fd = open(file_name.c_str(), O_RDONLY);
 		abstract_frame_from_CIF_file(fd, "./tmp_work/input_frames/frame_", strlen("./tmp_work/input_frames/frame_"), q);
 		close(fd);

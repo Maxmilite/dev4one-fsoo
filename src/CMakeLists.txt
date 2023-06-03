@@ -1,7 +1,7 @@
 set(SOURCE_FILE main.cpp)
 set(TARGET_NAME main)
 
-set(COMPILE_FLAGS "-fsycl -Wall ${WIN_FLAG}")
+set(COMPILE_FLAGS "-fsycl -w ${WIN_FLAG}")
 set(LINK_FLAGS "-fsycl")
 set(USE_AVX_INSTRUCTIONS true)
 set(USE_SSE2_INSTRUCTIONS true)
