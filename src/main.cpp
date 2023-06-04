@@ -46,6 +46,10 @@ int main(int argc, char *argv[]) {
 		util::printUsage();
 	}
 
+	mkdir("./tmp_work", 0777);
+	mkdir("./tmp_work/input_frames", 0777);
+	mkdir("./tmp_work/output_frames", 0777);
+
 	std::cout << "Origin Video: " << argv[1] << std::endl;
 	std::cout << "Pattern Image: " << argv[2] << std::endl;
 
@@ -65,8 +69,22 @@ int main(int argc, char *argv[]) {
 	if (frame_num == -1) return -1;
 
 	std::cout << "Spliting yuv video into frames" << std::endl;
-	// image_process::run("./tmp_work/out.yuv", frame_num, q);
+	image_process::run("./tmp_work/out.yuv", frame_num, q);
 	std::cout << "Frames split" << std::endl;
+
+	dlib::array2d<unsigned char> img_dlib1;
+	cv::Mat img_cv1;
+	try {
+		dlib::load_image(img_dlib1, argv[2]);
+		img_cv1 = cv::imread(argv[2]);
+	} catch (const std::exception &e) {
+		std::cerr << e.what() << std::endl;
+		exit(-1);
+	}
+	img_cv1.convertTo(img_cv1, CV_32F);
+	std::vector<cv::Point2f> points1;
+	face_landmark_detection(img_dlib1, sp, points1);
+
 	for (int index = 1; index <= frame_num; ++index) {
 
 		std::cout << "Now processing frame " << index << "." << std::endl;
@@ -80,12 +98,10 @@ int main(int argc, char *argv[]) {
 		ss >> file_out;
 
 		lint current_time = get_time();
-		dlib::array2d<unsigned char> img_dlib1, img_dlib2;
-		cv::Mat img_cv1, img_cv2;
+		dlib::array2d<unsigned char> img_dlib2;
+		cv::Mat img_cv2;
 		try {
-			dlib::load_image(img_dlib1, argv[2]);
 			dlib::load_image(img_dlib2, file_in);
-			img_cv1 = cv::imread(argv[2]);
 			img_cv2 = cv::imread(file_in);
 		} catch (const std::exception &e) {
 			std::cerr << e.what() << std::endl;
@@ -96,9 +112,9 @@ int main(int argc, char *argv[]) {
 		}
 		current_time = calc_time_elapsed(current_time);
 
-		std::vector<cv::Point2f> points1, points2;
+		std::vector<cv::Point2f> points2;
 		int status = 1;
-		status &= face_landmark_detection(img_dlib1, sp, points1);
+		// status &= face_landmark_detection(img_dlib1, sp, points1);
 		status &= face_landmark_detection(img_dlib2, sp, points2);
 		if (!status) {
 			try {
@@ -113,7 +129,9 @@ int main(int argc, char *argv[]) {
 		current_time = calc_time_elapsed(current_time);
 
 		cv::Mat img_cv1_warped = img_cv2.clone();
-		img_cv1.convertTo(img_cv1, CV_32F);
+
+
+
 		img_cv1_warped.convertTo(img_cv1_warped, CV_32F);
 
 		std::vector<cv::Point2f> hull1, hull2;
@@ -130,13 +148,15 @@ int main(int argc, char *argv[]) {
 		cv::Rect rect(0, 0, img_cv1_warped.cols, img_cv1_warped.rows);
 		delaunay_triangulation(hull2, delaunary_tri, rect);
 
+		cv::Mat img_cv1_t = img_cv1;
+
 		for (const auto &corpd : delaunary_tri) {
 			std::vector<cv::Point2f> t1, t2;
 			for (int j = 0; j < 3; ++j) {
 				t1.push_back(hull1[corpd.index[j]]);
 				t2.push_back(hull2[corpd.index[j]]);
 			}
-			warp_triangle(img_cv1, img_cv1_warped, t1, t2);
+			warp_triangle(img_cv1_t, img_cv1_warped, t1, t2);
 		}
 		current_time = calc_time_elapsed(current_time);
 

@@ -3,9 +3,9 @@
 #ifndef DLIB_FRONTAL_FACE_DETECTOr_Hh_
 #define DLIB_FRONTAL_FACE_DETECTOr_Hh_
 
+#include "scan_fhog_pyramid.h"
 #include <dlib/image_processing/frontal_face_detector_abstract.h>
 #include <dlib/image_processing/object_detector.h>
-#include <dlib/image_processing/scan_fhog_pyramid.h>
 #include <sstream>
 #include <dlib/compress_stream.h>
 #include <dlib/base64.h>
