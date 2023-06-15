@@ -43,7 +43,7 @@ sycl::queue q;
 int main(int argc, char *argv[]) {
 
 	if (argc != 4) {
-		util::printUsage();
+		util::print_usage();
 	}
 
 	mkdir("./tmp_work", 0777);
@@ -63,7 +63,8 @@ int main(int argc, char *argv[]) {
 	std::cout << "dlib Shape Detector Initialized" << std::endl;
 
 	std::cout << "Decoding Video" << std::endl;
-	int frame_num = video_process::run(argv[1]);
+	util::split_va(argv[1]);
+	int frame_num = video_process::run(std::string("./tmp_work/input.h264"));
 	std::cout << "Video Decoded" << std::endl;
 
 	if (frame_num == -1) return -1;
@@ -85,7 +86,7 @@ int main(int argc, char *argv[]) {
 	std::vector<cv::Point2f> points1;
 	face_landmark_detection(img_dlib1, sp, points1);
 
-	for (int index = 1; index <= frame_num; ++index) {
+	for (int index = 1; index <= 0; ++index) {
 
 		std::cout << "Now processing frame " << index << "." << std::endl;
 

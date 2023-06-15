@@ -13,6 +13,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories("/opt/intel/oneapi/dpl/latest/linux")
 target_link_libraries(main ${OpenCV_LIBS})
 target_link_libraries(main dlib::dlib)
 find_package(VPL REQUIRED)

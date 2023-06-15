@@ -33,14 +33,15 @@
 
 using namespace sycl;
 
-#define WIDTH 1920
-#define HEIGHT 1080
+const int WIDTH = 1920;
+const int HEIGHT = 1080;
 
 #define MAX2(a, b) ((a) > (b) ? (a) : (b))
 #define MIN2(a, b) ((a) > (b) ? (b) : (a))
 #define CLIP3(a, low, high) MIN2(MAX2(a, low), high)
 
 namespace sycl_accelerator {
+
 	void buf_add_1(uint8_t *tmp, uint8_t *src, int uv_height, int uv_stride, queue& q) {
 		// for (int y = 0; y < uv_height; y++) {
 		// 	for (int x = 0; x < uv_stride; x++) {
@@ -227,7 +228,7 @@ namespace image_process {
 			if (rp) free(rp);
 			if (gp) free(gp);
 			if (bp) free(bp);
-			util::callException("Out of memory");
+			util::call_exception("Out of memory");
 		}
 
 		while ((ret = read(fd, buf, Frame_SIZE))) {
@@ -310,7 +311,7 @@ namespace image_process_inv {
 		// Just a substitute here
 
 		std::stringstream ss;
-		ss << "ffmpeg -framerate 30 -y -i ./tmp_work/output_frames/frame_%d.png -c:a copy -crf 20 -c:v libx264 -pix_fmt yuv420p ";
+		ss << "ffmpeg -framerate 30 -y -i ./tmp_work/output_frames/frame_%d.png -i ./tmp_work/audio.m4a -c:a copy -crf 20 -c:v libx264 -pix_fmt yuv420p ";
 		ss << name;
 		std::string s;
 		getline(ss, s);
