@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
 	std::vector<cv::Point2f> points1;
 	face_landmark_detection(img_dlib1, sp, points1);
 
-	for (int index = 1; index <= 0; ++index) {
+	for (int index = 1; index <= frame_num; ++index) {
 
 		std::cout << "Now processing frame " << index << "." << std::endl;
 
